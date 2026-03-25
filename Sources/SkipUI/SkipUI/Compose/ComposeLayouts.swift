@@ -146,7 +146,7 @@ private func flexibleLayoutFloat(_ value: CGFloat?) -> Float? {
 /// Layout the given view to ignore the given safe areas.
 @Composable func IgnoresSafeAreaLayout(content: Renderable, context: ComposeContext, expandInto: Edge.Set, logTag: String = "") {
     ComposeContainer(modifier: context.modifier) { modifier in
-        IgnoresSafeAreaLayout(expandInto: expandInto, modifier: modifier, logTag: logTag) { _, _ in
+        IgnoresSafeAreaLayout(expandInto: expandInto, checkEdges: expandInto, modifier: modifier, logTag: logTag) { _, _ in
             content.Render(context.content())
         }
     }

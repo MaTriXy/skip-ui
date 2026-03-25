@@ -368,7 +368,7 @@ public struct TabView : View, Renderable {
         // tab switches
         var ignoresSafeAreaEdges: Edge.Set = [.bottom, .top]
         ignoresSafeAreaEdges.formIntersection(safeArea?.absoluteSystemBarEdges ?? [])
-        IgnoresSafeAreaLayout(expandInto: ignoresSafeAreaEdges, logTag: "TabView") { _, _ in
+        IgnoresSafeAreaLayout(expandInto: ignoresSafeAreaEdges, checkEdges: ignoresSafeAreaEdges, logTag: "TabView") { _, _ in
             ComposeContainer(modifier: context.modifier, fillWidth: true, fillHeight: true) { modifier in
                 // Don't use a Scaffold: it clips content beyond its bounds and prevents .ignoresSafeArea modifiers from working
                 Column(modifier: modifier.background(Color.background.colorImpl())) {
