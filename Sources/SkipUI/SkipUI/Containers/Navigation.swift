@@ -147,7 +147,7 @@ public struct NavigationStack : View, Renderable {
             // When we layout, only extend into safe areas that are due to system bars, not into any app chrome
             var ignoresSafeAreaEdges: Edge.Set = [.top, .bottom]
             ignoresSafeAreaEdges.formIntersection(safeArea?.absoluteSystemBarEdges ?? [])
-            IgnoresSafeAreaLayout(expandInto: ignoresSafeAreaEdges) { _, _ in
+            IgnoresSafeAreaLayout(expandInto: ignoresSafeAreaEdges, logTag: "NavigationStack") { _, _ in
                 ComposeContainer(modifier: context.modifier, fillWidth: true, fillHeight: true) { modifier in
                     let isRTL = EnvironmentValues.shared.layoutDirection == LayoutDirection.rightToLeft
                     NavHost(navController: navController, startDestination: Navigator.rootRoute, modifier: modifier) {
