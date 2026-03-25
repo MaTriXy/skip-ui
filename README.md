@@ -3047,6 +3047,41 @@ struct MyView: View {
 
 These hints tell `NavigationStack` to render the correct navigation bar content on the first try, eliminating layout shifts.
 
+If your navigation destinations have different expectations, you can set them with `navigationDestinationLayoutHints`, like this:
+
+```swift
+struct CityPickerView: View {
+    var body: some View {
+        NavigationStack {
+            List(City.allCases) { city in
+                NavigationLink(value: city) {
+                    rowView(city: city)
+                }
+            }
+            .navigationTitle("Cities")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: City.self) { city in
+                CityView(city: city)
+                    .navigationTitle(city.rawValue)
+                    .navigationBarTitleDisplayMode(.large)
+            }
+            #if os(Android)
+            .navigationDestinationLayoutHints(
+                for: City.self,
+                expectedTitleDisplayMode: .large
+            )
+            #endif
+        }
+        #if os(Android)
+        .navigationStackLayoutHints(
+            expectedTitle: Text("Cities"),
+            expectedTitleDisplayMode: .inline
+        )
+        #endif
+    }
+}
+```
+
 #### Modals
 
 Skip supports standard modal presentations. Android apps typically allow users to dismiss modals with the Android back button. Skip allows you to selectively disable this behavior with the Android-only `backDismissDisabled(_ isDisabled: Bool = true)` SwiftUI modifier. If you use this modifier, you **must** put it on the top-level view embedded in your `.sheet` or `.fullScreenCover`, as in the following example:

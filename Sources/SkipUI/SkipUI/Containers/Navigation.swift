@@ -136,10 +136,15 @@ public struct NavigationStack : View, Renderable {
         }
         // Make this collector non-erasable so that destinations defined at e.g. the root nav stack layer don't disappear when you push
         let destinationsCollector = PreferenceCollector<NavigationDestinations>(key: NavigationDestinationsPreferenceKey.self, state: destinations, isErasable: false)
+        let destinationLayoutHints = rememberSaveable(stateSaver: context.stateSaver as! Saver<Preference<NavigationDestinationLayoutHintsMap>, Any>) { mutableStateOf(Preference<NavigationDestinationLayoutHintsMap>(key: NavigationDestinationLayoutHintsPreferenceKey.self))
+        }
+        let destinationLayoutHintsCollector = PreferenceCollector<NavigationDestinationLayoutHintsMap>(key: NavigationDestinationLayoutHintsPreferenceKey.self, state: destinationLayoutHints, isErasable: false)
         let reducedDestinations = destinations.value.reduced
+        let reducedDestinationLayoutHints = destinationLayoutHints.value.reduced
+        let mergedDestinations = mergeNavigationDestinationsWithLayoutHints(reducedDestinations, layoutHints: reducedDestinationLayoutHints)
         let navBackStack = rememberNavBackStack(SkipNavigationStackRootKey.root)
-        let navigator = rememberSaveable(stateSaver: context.stateSaver as! Saver<Navigator, Any>) { mutableStateOf(Navigator(navBackStack: navBackStack, destinations: reducedDestinations, destinationKeyTransformer: destinationKeyTransformer)) }
-        navigator.value.didCompose(navBackStack: navBackStack, destinations: reducedDestinations, path: path, navigationPath: navigationPath, keyboardController: LocalSoftwareKeyboardController.current)
+        let navigator = rememberSaveable(stateSaver: context.stateSaver as! Saver<Navigator, Any>) { mutableStateOf(Navigator(navBackStack: navBackStack, destinations: mergedDestinations, destinationKeyTransformer: destinationKeyTransformer)) }
+        navigator.value.didCompose(navBackStack: navBackStack, destinations: mergedDestinations, path: path, navigationPath: navigationPath, keyboardController: LocalSoftwareKeyboardController.current)
 
         // SKIP INSERT: val providedNavigator = LocalNavigator provides navigator.value
         CompositionLocalProvider(providedNavigator) {
@@ -165,7 +170,7 @@ public struct NavigationStack : View, Renderable {
                             let toolbarContentPreferences = rememberSaveable(stateSaver: state.stateSaver as! Saver<Preference<ToolbarContentPreferences>, Any>) { mutableStateOf(Preference<ToolbarContentPreferences>(key: ToolbarContentPreferenceKey.self)) }
                             let toolbarContentPreferencesCollector = PreferenceCollector<ToolbarContentPreferences>(key: ToolbarContentPreferenceKey.self, state: toolbarContentPreferences)
                             let arguments = NavigationEntryArguments(isRoot: true, state: state, safeArea: safeArea, ignoresSafeAreaEdges: ignoresSafeAreaEdges, title: title.value.reduced, toolbarPreferences: toolbarPreferences.value.reduced)
-                            PreferenceValues.shared.collectPreferences([titleCollector, toolbarPreferencesCollector, toolbarContentPreferencesCollector, destinationsCollector]) {
+                            PreferenceValues.shared.collectPreferences([titleCollector, toolbarPreferencesCollector, toolbarContentPreferencesCollector, destinationsCollector, destinationLayoutHintsCollector]) {
                                 RenderEntry(navigator: navigator, toolbarContent: toolbarContentPreferences, arguments: arguments, context: context) { context in
                                     root.Compose(context: context)
                                 }
@@ -188,7 +193,7 @@ public struct NavigationStack : View, Renderable {
                                 return ComposeResult.ok
                             } in: {
                                 let arguments = NavigationEntryArguments(isRoot: false, state: state, safeArea: safeArea, ignoresSafeAreaEdges: ignoresSafeAreaEdges, title: title.value.reduced, toolbarPreferences: toolbarPreferences.value.reduced)
-                                PreferenceValues.shared.collectPreferences([titleCollector, toolbarPreferencesCollector, toolbarContentPreferencesCollector, destinationsCollector]) {
+                                PreferenceValues.shared.collectPreferences([titleCollector, toolbarPreferencesCollector, toolbarContentPreferencesCollector, destinationsCollector, destinationLayoutHintsCollector]) {
                                     RenderEntry(navigator: navigator, toolbarContent: toolbarContentPreferences, arguments: arguments, context: context) { context in
                                         let destinationArguments = NavigationDestinationArguments(targetValue: targetValue)
                                         RenderDestination(state.destination, arguments: destinationArguments, context: context)
@@ -223,11 +228,12 @@ public struct NavigationStack : View, Renderable {
         let state = arguments.state
         let context = context.content(stateSaver: state.stateSaver)
 
+        let entryLayoutHints = state.layoutHints ?? (arguments.isRoot ? EnvironmentValues.shared._navigationStackLayoutHints : nil)
         let hasTitleFromPreferences = arguments.title != NavigationTitlePreferenceKey.defaultValue
         let hasTitle: Bool
         let title: Text
         let titleDisplayPreference: ToolbarTitleDisplayMode?
-        if let layoutHints = EnvironmentValues.shared._navigationStackLayoutHints {
+        if let layoutHints = entryLayoutHints {
             let hasTitleFromHints = layoutHints.expectedTitle != NavigationTitlePreferenceKey.defaultValue
             hasTitle = hasTitleFromPreferences || hasTitleFromHints
             title = hasTitleFromPreferences ? arguments.title : (hasTitleFromHints ? layoutHints.expectedTitle : arguments.title)
@@ -711,12 +717,34 @@ public struct SkipNavigationStackPushKey : NavKey {
 }
 
 typealias NavigationDestinations = Dictionary<AnyHashable, NavigationDestination>
+typealias NavigationDestinationLayoutHintsMap = Dictionary<AnyHashable, NavigationStackLayoutHints>
+
 struct NavigationDestination {
     let destination: (Any) -> any View
+    let layoutHints: NavigationStackLayoutHints?
+
+    init(destination: @escaping (Any) -> any View, layoutHints: NavigationStackLayoutHints? = nil) {
+        self.destination = destination
+        self.layoutHints = layoutHints
+    }
+
     // No way to compare closures. Assume equal so we don't think our destinations are constantly updating
     public override func equals(other: Any?) -> Bool {
         return true
     }
+}
+
+private func mergeNavigationDestinationsWithLayoutHints(_ destinations: NavigationDestinations, layoutHints: NavigationDestinationLayoutHintsMap) -> NavigationDestinations {
+    if layoutHints.isEmpty {
+        return destinations
+    }
+    var merged = destinations
+    for (key, hint) in layoutHints {
+        if let existing = merged[key] {
+            merged[key] = NavigationDestination(destination: existing.destination, layoutHints: hint)
+        }
+    }
+    return merged
 }
 
 @Stable final class Navigator {
@@ -755,15 +783,17 @@ struct NavigationDestination {
         let route: String
         let destination: ((Any) -> any View)?
         let targetValue: Any?
+        let layoutHints: NavigationStackLayoutHints?
         let stateSaver: ComposeStateSaver
         var titleDisplayMode: ToolbarTitleDisplayMode?
         var binding: Binding<Bool>?
 
-        init(id: String, route: String, destination: ((Any) -> any View)? = nil, targetValue: Any? = nil, stateSaver: ComposeStateSaver = ComposeStateSaver()) {
+        init(id: String, route: String, destination: ((Any) -> any View)? = nil, targetValue: Any? = nil, layoutHints: NavigationStackLayoutHints? = nil, stateSaver: ComposeStateSaver = ComposeStateSaver()) {
             self.id = id
             self.route = route
             self.destination = destination
             self.targetValue = targetValue
+            self.layoutHints = layoutHints
             self.stateSaver = stateSaver
         }
     }
@@ -822,7 +852,7 @@ struct NavigationDestination {
         viewDestinationValue += 1
 
         let route = Self.route(for: viewDestinationIndex, valueString: String(describing: targetValue))
-        return navigate(route: route, destination: { _ in view }, targetValue: targetValue, binding: binding)
+        return navigate(route: route, destination: { _ in view }, layoutHints: nil, targetValue: targetValue, binding: binding)
     }
 
     /// Pop the back stack.
@@ -1009,11 +1039,11 @@ struct NavigationDestination {
         }
 
         let route = route(for: key, value: targetValue)
-        navigate(route: route, destination: destination.destination, targetValue: targetValue)
+        navigate(route: route, destination: destination.destination, layoutHints: destination.layoutHints, targetValue: targetValue)
         return true
     }
 
-    private func navigate(route: String, destination: ((Any) -> any View)?, targetValue: Any, binding: Binding<Bool>? = nil) -> String? {
+    private func navigate(route: String, destination: ((Any) -> any View)?, layoutHints: NavigationStackLayoutHints?, targetValue: Any, binding: Binding<Bool>? = nil) -> String? {
         let slash = route.indexOf("/")
         guard slash >= 0 else {
             return nil
@@ -1024,17 +1054,17 @@ struct NavigationDestination {
             return nil
         }
         let pushKey = SkipNavigationStackPushKey(destinationIndex: destIndex, identifier: identifier)
-        return navigate(pushKey: pushKey, route: route, destination: destination, targetValue: targetValue, binding: binding)
+        return navigate(pushKey: pushKey, route: route, destination: destination, layoutHints: layoutHints, targetValue: targetValue, binding: binding)
     }
 
-    private func navigate(pushKey: SkipNavigationStackPushKey, route: String, destination: ((Any) -> any View)?, targetValue: Any, binding: Binding<Bool>? = nil) -> String? {
+    private func navigate(pushKey: SkipNavigationStackPushKey, route: String, destination: ((Any) -> any View)?, layoutHints: NavigationStackLayoutHints?, targetValue: Any, binding: Binding<Bool>? = nil) -> String? {
         // We see a top app bar glitch when the keyboard animates away after push, so manually dismiss it first
         keyboardController?.hide()
         navBackStack.add(pushKey)
         let entryId = stableEntryId(forKey: pushKey)
         var state = backStackState[entryId]
         if state == nil {
-            state = BackStackState(id: entryId, route: route, destination: destination, targetValue: targetValue)
+            state = BackStackState(id: entryId, route: route, destination: destination, targetValue: targetValue, layoutHints: layoutHints)
             backStackState[entryId] = state
         }
         if let binding {
@@ -1339,6 +1369,21 @@ extension View {
              affectsEvaluate: false
         )
     }
+    public func navigationDestinationLayoutHints(for data: Any.Type, expectedTitle: Text = NavigationTitlePreferenceKey.defaultValue, expectedTitleDisplayMode: ToolbarTitleDisplayMode? = nil) -> any View {
+        let hints = NavigationStackLayoutHints(
+            expectedTitle: expectedTitle,
+            expectedTitleDisplayMode: expectedTitleDisplayMode
+        )
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [data as! AnyHashable: hints])
+    }
+
+    public func navigationDestinationLayoutHints(destinationKey: String, expectedTitle: Text = NavigationTitlePreferenceKey.defaultValue, expectedTitleDisplayMode: ToolbarTitleDisplayMode? = nil) -> any View {
+        let hints = NavigationStackLayoutHints(
+            expectedTitle: expectedTitle,
+            expectedTitleDisplayMode: expectedTitleDisplayMode
+        )
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [destinationKey: hints])
+    }
     #endif
 
     // SKIP @bridge
@@ -1363,6 +1408,25 @@ extension View {
         #endif
     }
 
+    // SKIP @bridge
+    public func navigationDestinationLayoutHints(destinationKey: String, expectedTitle: Text, bridgedExpectedTitleDisplayMode: Int?) -> any View {
+        #if SKIP
+        let expectedTitleDisplayMode: ToolbarTitleDisplayMode? = bridgedExpectedTitleDisplayMode.flatMap { raw in
+            switch NavigationBarItem.TitleDisplayMode(rawValue: raw) ?? .automatic {
+            case .automatic: return ToolbarTitleDisplayMode.automatic
+            case .inline: return ToolbarTitleDisplayMode.inline
+            case .large: return ToolbarTitleDisplayMode.large
+            }
+        }
+        let hints = NavigationStackLayoutHints(
+            expectedTitle: expectedTitle,
+            expectedTitleDisplayMode: expectedTitleDisplayMode
+        )
+        return preference(key: NavigationDestinationLayoutHintsPreferenceKey.self, value: [destinationKey: hints])
+        #else
+        return self
+        #endif
+    }
 }
 
 #if SKIP
@@ -1422,6 +1486,16 @@ struct NavigationTitlePreferenceKey: PreferenceKey {
 
     static func reduce(value: inout Text, nextValue: () -> Text) {
         value = nextValue()
+    }
+}
+
+struct NavigationDestinationLayoutHintsPreferenceKey: PreferenceKey {
+    static let defaultValue: NavigationDestinationLayoutHintsMap = [:]
+
+    static func reduce(value: inout NavigationDestinationLayoutHintsMap, nextValue: () -> NavigationDestinationLayoutHintsMap) {
+        for (key, hints) in nextValue() {
+            value[key] = hints
+        }
     }
 }
 
