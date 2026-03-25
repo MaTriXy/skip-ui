@@ -779,6 +779,12 @@ extension EnvironmentValues {
         set { setBuiltinValue(key: "_material3TopAppBar", value: newValue, defaultValue: { nil }) }
     }
 
+    /// Bootstrap hints so `NavigationStack` can reserve top bar space and defer body visibility until the bar is positioned (Android). See `View.navigationStackLayoutHints(_:)`.
+    var _navigationStackLayoutHints: NavigationStackLayoutHints? {
+        get { builtinValue(key: "_navigationStackLayoutHints", defaultValue: { nil }) as! NavigationStackLayoutHints? }
+        set { setBuiltinValue(key: "_navigationStackLayoutHints", value: newValue, defaultValue: { nil }) }
+    }
+
     /// Nested scroll connection for the active `NavigationStack` entry's top app bar
     public var _nestedScrollConnection: NestedScrollConnection? {
         get { builtinValue(key: "_nestedScrollConnection", defaultValue: { nil }) as! NestedScrollConnection? }

@@ -223,11 +223,25 @@ public struct NavigationStack : View, Renderable {
         let state = arguments.state
         let context = context.content(stateSaver: state.stateSaver)
 
+        let hasTitleFromPreferences = arguments.title != NavigationTitlePreferenceKey.defaultValue
+        let hasTitle: Bool
+        let title: Text
+        let titleDisplayPreference: ToolbarTitleDisplayMode?
+        if let layoutHints = EnvironmentValues.shared._navigationStackLayoutHints {
+            let hasTitleFromHints = layoutHints.expectedTitle != NavigationTitlePreferenceKey.defaultValue
+            hasTitle = hasTitleFromPreferences || hasTitleFromHints
+            title = hasTitleFromPreferences ? arguments.title : (hasTitleFromHints ? layoutHints.expectedTitle : arguments.title)
+            titleDisplayPreference = arguments.toolbarPreferences.titleDisplayMode ?? layoutHints.expectedTitleDisplayMode
+        } else {
+            hasTitle = hasTitleFromPreferences
+            title = arguments.title
+            titleDisplayPreference = arguments.toolbarPreferences.titleDisplayMode
+        }
+
         let topBarPreferences = arguments.toolbarPreferences.navigationBar
         let topBarHidden = remember { mutableStateOf(false) }
         let bottomBarPreferences = arguments.toolbarPreferences.bottomBar
-        let hasTitle = arguments.title != NavigationTitlePreferenceKey.defaultValue
-        let effectiveTitleDisplayMode = navigator.value.titleDisplayMode(for: state, hasTitle: hasTitle, preference: arguments.toolbarPreferences.titleDisplayMode)
+        let effectiveTitleDisplayMode = navigator.value.titleDisplayMode(for: state, hasTitle: hasTitle, preference: titleDisplayPreference)
         let isInlineTitleDisplayMode = useInlineTitleDisplayMode(for: effectiveTitleDisplayMode, safeArea: arguments.safeArea)
 
         // We would like to only process toolbar content in our topBar/bottomBar Composables, but composing
@@ -368,12 +382,12 @@ public struct NavigationStack : View, Renderable {
                             })
                             let arrangement = Arrangement.spacedBy(2.dp, alignment: androidx.compose.ui.Alignment.CenterHorizontally)
                             Row(modifier: menuModifier, horizontalArrangement: arrangement, verticalAlignment: androidx.compose.ui.Alignment.CenterVertically) {
-                                androidx.compose.material3.Text(arguments.title.localizedTextString(), maxLines: 1, overflow: TextOverflow.Ellipsis)
+                                androidx.compose.material3.Text(title.localizedTextString(), maxLines: 1, overflow: TextOverflow.Ellipsis)
                                 Image(systemName: "chevron.down").accessibilityHidden(true).Compose(context: context)
                             }
                             titleMenu.Render(context: context)
                         } else {
-                            androidx.compose.material3.Text(arguments.title.localizedTextString(), maxLines: 1, overflow: TextOverflow.Ellipsis)
+                            androidx.compose.material3.Text(title.localizedTextString(), maxLines: 1, overflow: TextOverflow.Ellipsis)
                         }
                     }
                     let topBarNavigationIcon: @Composable () -> Void = {
@@ -1315,7 +1329,40 @@ extension View {
     public func material3BottomAppBar(_ options: @Composable (Material3BottomAppBarOptions) -> Material3BottomAppBarOptions) -> View {
         return environment(\._material3BottomAppBar, options, affectsEvaluate: false)
     }
+
+    public func navigationStackLayoutHints(expectedTitle: Text = NavigationTitlePreferenceKey.defaultValue, expectedTitleDisplayMode: ToolbarTitleDisplayMode? = nil) -> View {
+        return environment(
+            \._navigationStackLayoutHints,
+             NavigationStackLayoutHints(
+                expectedTitle: expectedTitle,
+                expectedTitleDisplayMode: expectedTitleDisplayMode),
+             affectsEvaluate: false
+        )
+    }
     #endif
+
+    // SKIP @bridge
+    public func navigationStackLayoutHints(expectedTitle: Text, bridgedExpectedTitleDisplayMode: Int?) -> any View {
+        #if SKIP
+        let expectedTitleDisplayMode: ToolbarTitleDisplayMode? = bridgedExpectedTitleDisplayMode.flatMap { raw in
+            switch NavigationBarItem.TitleDisplayMode(rawValue: raw) ?? .automatic {
+            case .automatic: return ToolbarTitleDisplayMode.automatic
+            case .inline: return ToolbarTitleDisplayMode.inline
+            case .large: return ToolbarTitleDisplayMode.large
+            }
+        }
+        return environment(
+            \._navigationStackLayoutHints,
+            NavigationStackLayoutHints(
+                expectedTitle: expectedTitle,
+                expectedTitleDisplayMode: expectedTitleDisplayMode),
+            affectsEvaluate: false
+        )
+        #else
+        return self
+        #endif
+    }
+
 }
 
 #if SKIP
@@ -1375,6 +1422,17 @@ struct NavigationTitlePreferenceKey: PreferenceKey {
 
     static func reduce(value: inout Text, nextValue: () -> Text) {
         value = nextValue()
+    }
+}
+
+/// Values supplied before `navigationTitle` / `navigationBarTitleDisplayMode` preferences propagate, so the first frames use the correct top bar eligibility, scroll behavior, and title text, preventing layout shift.
+public struct NavigationStackLayoutHints {
+    public let expectedTitle: Text
+    public let expectedTitleDisplayMode: ToolbarTitleDisplayMode?
+
+    public init(expectedTitle: Text = NavigationTitlePreferenceKey.defaultValue, expectedTitleDisplayMode: ToolbarTitleDisplayMode? = nil) {
+        self.expectedTitle = expectedTitle
+        self.expectedTitleDisplayMode = expectedTitleDisplayMode
     }
 }
 #endif
