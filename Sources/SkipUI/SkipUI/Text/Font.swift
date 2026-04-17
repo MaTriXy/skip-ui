@@ -477,7 +477,7 @@ public struct Font : Hashable {
         case .serif:
             return FontFamily.Serif
         case .rounded:
-            return FontFamily.Cursive
+            return FontFamily.SansSerif // FontFamily.Cursive used previously, but it isn't a good replacement for rounded
         case .monospaced:
             return FontFamily.Monospace
         }
