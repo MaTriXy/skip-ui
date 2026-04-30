@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.material.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
@@ -37,7 +36,11 @@ import androidx.compose.material.icons.outlined.KeyboardArrowLeft
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MediumTopAppBar
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -253,12 +256,18 @@ public struct NavigationStack : View, Renderable {
         // Determine the final scrollBehavior early by checking if the environment value would modify it
         // We need to do this before we create the nestedScroll modifier so we attach the correct nestedScrollConnection
         let scrollBehavior: TopAppBarScrollBehavior
+        let navigationIconButtonStyle: Material3TopAppBarNavigationIconButtonStyle
+        let navigationIconButtonColors: IconButtonColors?
         if let updateOptions = EnvironmentValues.shared._material3TopAppBar {
             let tempOptions = Material3TopAppBarOptions(title: {}, modifier: Modifier, navigationIcon: {}, colors: TopAppBarDefaults.topAppBarColors(), scrollBehavior: initialScrollBehavior)
             let updatedOptions = updateOptions(tempOptions)
             scrollBehavior = updatedOptions.scrollBehavior ?? initialScrollBehavior
+            navigationIconButtonStyle = updatedOptions.navigationIconButtonStyle
+            navigationIconButtonColors = updatedOptions.navigationIconButtonColors
         } else {
             scrollBehavior = initialScrollBehavior
+            navigationIconButtonStyle = Material3TopAppBarNavigationIconButtonStyle.iconButton
+            navigationIconButtonColors = nil
         }
         var modifier = Modifier.nestedScroll(searchFieldScrollConnection)
         if !topBarHidden.value {
@@ -382,11 +391,25 @@ public struct NavigationStack : View, Renderable {
                             let toolbarItemContext = context.content(modifier: Modifier.padding(start: 12.dp, end: 12.dp))
                             Row(verticalAlignment: androidx.compose.ui.Alignment.CenterVertically) {
                                 if hasBackButton {
-                                    IconButton(onClick: {
-                                        navigator.value.navigateBack()
-                                    }) {
-                                        let isRTL = EnvironmentValues.shared.layoutDirection == LayoutDirection.rightToLeft
-                                        Icon(imageVector: (isRTL ? Icons.Filled.ArrowForward : Icons.Filled.ArrowBack), contentDescription: "Back", tint: tint.colorImpl())
+                                    let isRTL = EnvironmentValues.shared.layoutDirection == LayoutDirection.rightToLeft
+                                    let backIcon: @Composable () -> Void = {
+                                        Icon(
+                                            imageVector: (isRTL ? Icons.Filled.ArrowForward : Icons.Filled.ArrowBack),
+                                            contentDescription: "Back",
+                                            tint: tint.colorImpl()
+                                        )
+                                    }
+                                    switch navigationIconButtonStyle {
+                                    case Material3TopAppBarNavigationIconButtonStyle.filledIconButton:
+                                        FilledIconButton(
+                                            onClick: { navigator.value.navigateBack() },
+                                            colors: navigationIconButtonColors ?? IconButtonDefaults.filledIconButtonColors()
+                                        ) { backIcon() }
+                                    case Material3TopAppBarNavigationIconButtonStyle.iconButton:
+                                        IconButton(
+                                            onClick: { navigator.value.navigateBack() },
+                                            colors: navigationIconButtonColors ?? IconButtonDefaults.iconButtonColors()
+                                        ) { backIcon() }
                                     }
                                 }
                                 for renderable in topLeadingItems {
@@ -1319,11 +1342,18 @@ extension View {
 }
 
 #if SKIP
+public enum Material3TopAppBarNavigationIconButtonStyle {
+    case iconButton
+    case filledIconButton
+}
+
 // SKIP INSERT: @OptIn(ExperimentalMaterial3Api::class)
 public struct Material3TopAppBarOptions {
     public var title: @Composable () -> Void
     public var modifier: Modifier = Modifier
     public var navigationIcon: @Composable () -> Void = {}
+    public var navigationIconButtonStyle: Material3TopAppBarNavigationIconButtonStyle = .iconButton
+    public var navigationIconButtonColors: IconButtonColors? = nil
     public var colors: TopAppBarColors
     public var scrollBehavior: TopAppBarScrollBehavior? = nil
     public var preferCenterAlignedStyle = false
@@ -1333,12 +1363,24 @@ public struct Material3TopAppBarOptions {
         title: @Composable () -> Void = self.title,
         modifier: Modifier = self.modifier,
         navigationIcon: @Composable () -> Void = self.navigationIcon,
+        navigationIconButtonStyle: Material3TopAppBarNavigationIconButtonStyle = self.navigationIconButtonStyle,
+        navigationIconButtonColors: IconButtonColors? = self.navigationIconButtonColors,
         colors: TopAppBarColors = self.colors,
         scrollBehavior: TopAppBarScrollBehavior? = self.scrollBehavior,
         preferCenterAlignedStyle: Bool = self.preferCenterAlignedStyle,
         preferLargeStyle: Bool = self.preferLargeStyle
     ) -> Material3TopAppBarOptions {
-        return Material3TopAppBarOptions(title: title, modifier: modifier, navigationIcon: navigationIcon, colors: colors, scrollBehavior: scrollBehavior, preferCenterAlignedStyle: preferCenterAlignedStyle, preferLargeStyle: preferLargeStyle)
+        return Material3TopAppBarOptions(
+            title: title,
+            modifier: modifier,
+            navigationIcon: navigationIcon,
+            navigationIconButtonStyle: navigationIconButtonStyle,
+            navigationIconButtonColors: navigationIconButtonColors,
+            colors: colors,
+            scrollBehavior: scrollBehavior,
+            preferCenterAlignedStyle: preferCenterAlignedStyle,
+            preferLargeStyle: preferLargeStyle
+        )
     }
 }
 
