@@ -236,6 +236,8 @@ public struct TabView : View, Renderable {
         let tabBarPreferencesCollector = PreferenceCollector<ToolbarBarPreferences>(key: TabBarPreferenceKey.self, state: tabBarPreferences)
 
         let safeArea = EnvironmentValues.shared._safeArea
+        /// Latest TabView-scope safe area; use inside long-lived nav entry closures so inset updates (e.g. status bar hide) propagate without relying on lexical capture of `safeArea`.
+        let tabViewSafeAreaState = rememberUpdatedState(safeArea)
         let density = LocalDensity.current
         let defaultBottomBarHeight = 80.dp
         let bottomBarTopPx = remember {
@@ -395,7 +397,8 @@ public struct TabView : View, Renderable {
                                 bottomPadding = max(0.dp, WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding() - WindowInsets.ime.asPaddingValues().calculateBottomPadding())
                             }
                             let contentModifier = Modifier.fillMaxSize().padding(top: topPadding, bottom: bottomPadding)
-                            let contentSafeArea = safeArea?.insetting(.bottom, to: bottomBarTopPx.value)
+                            let tabViewSafeArea = tabViewSafeAreaState.value
+                            let contentSafeArea = tabViewSafeArea?.insetting(Edge.bottom, to: bottomBarTopPx.value)
 
                             // Special-case the first composition to avoid seeing the layout adjust. This is a common
                             // issue with nav stacks in particular, and they're common enough that we need to cater to them.
