@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
@@ -383,7 +384,6 @@ public struct TabView : View, Renderable {
                 Column(modifier: modifier.background(Color.background.colorImpl())) {
                     let entryContext = context.content()
                     let activeStack = tabBackStacks[selectedTabIndex.value]
-                    let tabDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator<NavKey>())
                     let tabEntryProvider: (NavKey) -> NavEntry<NavKey> = { key in
                         let tabKey = key as! SkipTabViewRouteKey
                         return NavEntry(tabKey, content: { key in
@@ -413,16 +413,30 @@ public struct TabView : View, Renderable {
                             }
                         })
                     }
+                    // Keep a stable SaveableStateHolder for each tab's backStack
+                    let decoratedEntrySlots = remember { arrayOfNulls<kotlin.collections.List<NavEntry<NavKey>>?>(100) }
+                    var tabIndex = 0
+                    while tabIndex < 100 {
+                        let ti = tabIndex
+                        key(ti) {
+                            let tabDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator<NavKey>())
+                            decoratedEntrySlots[ti] = rememberDecoratedNavEntries(
+                                backStack: tabBackStacks[ti],
+                                entryDecorators: tabDecorators,
+                                entryProvider: tabEntryProvider
+                            )
+                        }
+                        tabIndex += 1
+                    }
+                    let activeEntries = decoratedEntrySlots[selectedTabIndex.value]!
                     NavDisplay(
-                        backStack: activeStack,
+                        entries: activeEntries,
                         modifier: Modifier.fillMaxWidth().weight(Float(1.0)),
                         onBack: {
                             if activeStack.size > 1 {
                                 activeStack.removeLastOrNull()
                             }
                         },
-                        entryDecorators: tabDecorators,
-                        entryProvider: tabEntryProvider
                     )
                     bottomBar()
                 }
