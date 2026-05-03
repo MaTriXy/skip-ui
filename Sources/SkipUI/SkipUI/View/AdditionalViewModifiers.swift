@@ -1498,18 +1498,28 @@ final class PaddingModifier: RenderModifier {
         self.insets = insets
         super.init(role: .spacing)
         self.action = { renderable, context in
+            let topAnim = Float(insets.top).asAnimatable(context: context)
+            let leadingAnim = Float(insets.leading).asAnimatable(context: context)
+            let bottomAnim = Float(insets.bottom).asAnimatable(context: context)
+            let trailingAnim = Float(insets.trailing).asAnimatable(context: context)
+            let animatedInsets = EdgeInsets(
+                top: CGFloat(topAnim.value),
+                leading: CGFloat(leadingAnim.value),
+                bottom: CGFloat(bottomAnim.value),
+                trailing: CGFloat(trailingAnim.value)
+            )
             let stripped = renderable.strip()
             if (stripped is LazyVGrid || stripped is LazyHGrid || stripped is LazyVStack || stripped is LazyHStack)
                 && renderable.forEachModifier(perform: { $0.role == .spacing ? true : nil }) == nil {
                 // Certain views apply their padding themselves
                 EnvironmentValues.shared.setValues {
-                    $0.set_contentPadding(insets)
+                    $0.set_contentPadding(animatedInsets)
                     return ComposeResult.ok
                 } in: {
                     renderable.Render(context: context)
                 }
             } else {
-                PaddingLayout(content: renderable, padding: insets, context: context)
+                PaddingLayout(content: renderable, padding: animatedInsets, context: context)
             }
         }
     }
