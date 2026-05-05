@@ -673,12 +673,12 @@ public struct NavigationStack : View, Renderable {
 #if SKIP
 
 // SKIP INSERT: @Serializable
-public enum SkipNavigationStackRootKey : NavKey {
+public enum SkipNavigationStackRootKey : NavKey, Hashable {
     case root
 }
 
 // SKIP INSERT: @Serializable
-public struct SkipNavigationStackPushKey : NavKey {
+public struct SkipNavigationStackPushKey : NavKey, Hashable {
     public let destinationIndex: Int
     public let identifier: String
 }
