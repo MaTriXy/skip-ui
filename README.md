@@ -543,10 +543,17 @@ extension View {
     public func material3TopAppBar(_ options: @Composable (Material3TopAppBarOptions) -> Material3TopAppBarOptions) -> some View
 }
 
+public enum Material3TopAppBarNavigationIconButtonStyle {
+    case iconButton
+    case filledIconButton
+}
+
 public struct Material3TopAppBarOptions {
     public var title: @Composable () -> Void
     public var modifier: androidx.compose.ui.Modifier
     public var navigationIcon: @Composable () -> Void
+    public var navigationIconButtonStyle: Material3TopAppBarNavigationIconButtonStyle
+    public var navigationIconButtonColors: androidx.compose.material3.IconButtonColors?
     public var colors: androidx.compose.material3.TopAppBarColors
     public var scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior?
     public var preferCenterAlignedStyle: Bool
