@@ -2542,6 +2542,7 @@ The following properties are currently animatable:
 - `.frame` width and height
 - `.offset`
 - `.opacity`
+- `.padding`
 - `.rotationEffect`
 - `.scaleEffect`
 - `.stroke` color
