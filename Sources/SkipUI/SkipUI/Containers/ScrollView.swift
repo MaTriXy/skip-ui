@@ -81,7 +81,7 @@ public struct ScrollView : View, Renderable {
 
         let contentContext = context.content()
         ComposeContainer(scrollAxes: effectiveScrollAxes, modifier: context.modifier, fillWidth: axes.contains(.horizontal), fillHeight: axes.contains(.vertical)) { modifier in
-            IgnoresSafeAreaLayout(expandInto: [], checkEdges: [.bottom], modifier: modifier) { _, safeAreaEdges in
+            IgnoresSafeAreaLayout(expandInto: [], checkEdges: [.bottom], modifier: modifier, logTag: "ScrollView") { _, safeAreaEdges in
                 var containerModifier: Modifier = Modifier
                 if wantsVerticalScroll {
                     containerModifier = containerModifier.fillMaxHeight()
